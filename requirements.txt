@@ -1,0 +1,8 @@
+# Core dependencies (Format Conversion, Resizing, Web Optimize)
+customtkinter>=5.2.0
+pillow>=10.0.0
+
+# Optional — AI Background Removal tab.
+# Heavy (pulls in onnxruntime); wheels may lag behind the newest Python.
+# If it fails to install, the rest of the app still works without it.
+# rembg>=2.0.50

@@ -1,0 +1,13 @@
+İşte her şeyi tek bir pakette birleştirecek o "Zırhlı" komut! Yalnız burada çok kritik bir detay var: customtkinter kullandığımız için, onun modern tema dosyalarını (.json dosyalarını) exe'nin içine zorla paketlememiz (add-data) gerekiyor. Aksi takdirde program çalışırken "Temayı bulamadım" diyerek çöker.
+
+Bu komut ne yapıyor?
+
+    --noconsole: Arkada o çirkin siyah CMD ekranının açılmasını engeller, program doğrudan modern arayüzüyle başlar.
+
+    --onefile: Yüzlerce kütüphaneyi, yapay zeka modüllerini ve Python motorunu alıp tek bir .exe dosyasının içine presler.
+
+    --icon=icon.ico: O özenle hazırladığın neon logoyu programın kalbine mühürler.
+
+    --add-data: CustomTkinter'ın karanlık tema ve renk şemalarını çantaya dahil eder.
+
+.\.venv\Scripts\pyinstaller.exe --noconsole --onefile --icon=icon.ico --collect-all rembg --collect-all onnxruntime --collect-all pooch --collect-all pymatting --add-data ".\.venv\Lib\site-packages\customtkinter;customtkinter\" ImageStudio.py
