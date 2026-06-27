@@ -6,7 +6,10 @@ binaries = []
 hiddenimports = []
 
 # Bundle these packages in full (data files, binaries, hidden imports).
-for pkg in ('customtkinter', 'rembg', 'onnxruntime', 'pooch', 'pymatting'):
+# numpy/scipy/skimage are collected explicitly: PyInstaller can miss numpy 2.x's
+# `numpy._core` data dir, which breaks rembg/onnxruntime at runtime.
+for pkg in ('customtkinter', 'rembg', 'onnxruntime', 'pooch', 'pymatting',
+            'numpy', 'scipy', 'skimage'):
     try:
         d, b, h = collect_all(pkg)
         datas += d; binaries += b; hiddenimports += h
