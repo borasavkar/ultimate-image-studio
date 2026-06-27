@@ -1,0 +1,68 @@
+<svg viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <radialGradient id="bg" cx="50%" cy="34%" r="80%">
+      <stop offset="0%" stop-color="#222c57"/>
+      <stop offset="52%" stop-color="#0e1533"/>
+      <stop offset="100%" stop-color="#060912"/>
+    </radialGradient>
+    <linearGradient id="neon" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#22e3ff"/>
+      <stop offset="50%" stop-color="#3a7bff"/>
+      <stop offset="100%" stop-color="#ff37c7"/>
+    </linearGradient>
+    <linearGradient id="rim" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#3affef"/>
+      <stop offset="100%" stop-color="#b14bff"/>
+    </linearGradient>
+    <linearGradient id="sun" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#ffe27a"/>
+      <stop offset="100%" stop-color="#ff7a3c"/>
+    </linearGradient>
+    <linearGradient id="mtn" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#27d6ff"/>
+      <stop offset="100%" stop-color="#2a5cff"/>
+    </linearGradient>
+    <linearGradient id="mtn2" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#7af0ff"/>
+      <stop offset="100%" stop-color="#2bb6ef"/>
+    </linearGradient>
+    <filter id="glow" x="-60%" y="-60%" width="220%" height="220%">
+      <feGaussianBlur stdDeviation="10" result="b"/>
+      <feMerge>
+        <feMergeNode in="b"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+    <filter id="bigglow" x="-80%" y="-80%" width="260%" height="260%">
+      <feGaussianBlur stdDeviation="24" result="b"/>
+      <feMerge>
+        <feMergeNode in="b"/>
+        <feMergeNode in="b"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+    <clipPath id="frame">
+      <rect x="266" y="318" width="492" height="388" rx="40" ry="40"/>
+    </clipPath>
+  </defs>
+
+  <rect x="64" y="64" width="896" height="896" rx="212" ry="212" fill="url(#bg)"/>
+  <rect x="64" y="64" width="896" height="896" rx="212" ry="212" fill="none" stroke="url(#rim)" stroke-width="7" opacity="0.5"/>
+
+  <g clip-path="url(#frame)">
+    <circle cx="392" cy="436" r="50" fill="url(#sun)" filter="url(#glow)"/>
+    <path d="M 246 706 L 470 512 L 588 612 L 690 520 L 786 706 Z" fill="url(#mtn)"/>
+    <path d="M 246 706 L 560 560 L 786 706 Z" fill="url(#mtn2)" opacity="0.65"/>
+  </g>
+
+  <g filter="url(#glow)">
+    <rect x="266" y="318" width="492" height="388" rx="40" ry="40" fill="none" stroke="url(#neon)" stroke-width="26"/>
+  </g>
+
+  <g filter="url(#bigglow)" transform="translate(742,300)">
+    <path d="M 0 -78 C 9 -24, 24 -9, 78 0 C 24 9, 9 24, 0 78 C -9 24, -24 9, -78 0 C -24 -9, -9 -24, 0 -78 Z" fill="#ffffff"/>
+  </g>
+  <g filter="url(#glow)" transform="translate(816,432)">
+    <path d="M 0 -30 C 3.5 -10, 10 -3.5, 30 0 C 10 3.5, 3.5 10, 0 30 C -3.5 10, -10 3.5, -30 0 C -10 -3.5, -3.5 -10, 0 -30 Z" fill="#9be9ff"/>
+  </g>
+</svg>
