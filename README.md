@@ -14,6 +14,7 @@
 
 - **🔄 Format Conversion** — convert between PNG, WebP, JPG/JPEG, AVIF, HEIC/HEIF, JXL, ICO, BMP, SVG and more. The output file name carries the image height (e.g. `photo_1080px.webp`).
 - **📐 Image Resizing** — resize with aspect‑ratio lock and selectable filters (Lanczos, Mitchell, Point) for sharp downscales or smooth upscales.
+- **🗜️ Web Optimize tab (ImageOptim‑style, no conversion)** — shrinks an image **in its own format** to the smallest visually‑lossless size for the web. Pick a compression level (Low / Medium / High); metadata is stripped and the output is never larger than the original (`photo_optimized.jpg`).
 - **🌍 Web Optimize (ImageOptim‑style)** — automatically routes each format through the best encoder for the smallest size at the same visual quality:
   | Format | Encoder | Notes |
   |--------|---------|-------|

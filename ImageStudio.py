@@ -80,6 +80,15 @@ class UltimateImageStudio(ctk.CTk):
             for tool in ("cjpeg", "cwebp", "pngquant", "oxipng")
         }
 
+        # --- "WEB OPTIMIZE" SEKMESİ KALİTE SEVİYELERİ (formatı değiştirmeden) ---
+        # ImageOptim'in Low/Medium/High mantığı. PNG bir kalite aralığı (pngquant) alır,
+        # diğerleri tek bir kalite değeri. "png_floor", aralığın alt sınırıdır.
+        self.optimize_levels = {
+            "Low":    {"jpg": 58, "webp": 55, "avif": 42, "heic": 42, "jxl": 60, "png": "35-65"},
+            "Medium": {"jpg": 70, "webp": 68, "avif": 52, "heic": 52, "jxl": 75, "png": "50-80"},
+            "High":   {"jpg": 84, "webp": 82, "avif": 65, "heic": 65, "jxl": 88, "png": "70-92"},
+        }
+
         # 1. FILE SELECTION AREA
         frame_files = self.create_card(self, "🖼️ Media Selection")
         frame_files.grid(row=0, column=0, sticky="nsew", padx=15, pady=10)
@@ -105,6 +114,7 @@ class UltimateImageStudio(ctk.CTk):
         self.tabs = {}
 
         self.create_convert_tab("🔄 Format Conversion")
+        self.create_optimize_tab("🗜️ Web Optimize")
         self.create_resize_tab("📐 Image Resizing")
         self.create_ai_tab("🪄 AI Background Removal")
 
@@ -146,6 +156,7 @@ class UltimateImageStudio(ctk.CTk):
         tab = self.tabview.get()
         if "AI" in tab: color, hover, text_color = "#8e44ad", "#732d91", "white"
         elif "Resizing" in tab: color, hover, text_color = "#e67e22", "#d35400", "white"
+        elif "Optimize" in tab: color, hover, text_color = "#27ae60", "#1e8449", "white"
         else: color, hover, text_color = "#2980b9", "#1f618d", "white"
             
         self.btn_start.configure(fg_color=color, hover_color=hover, text_color=text_color)
@@ -351,10 +362,51 @@ class UltimateImageStudio(ctk.CTk):
 
         update_quality_ui_resize(vars["target_format"].get())
 
+    def create_optimize_tab(self, tab_name):
+        self.tabview.add(tab_name)
+        frame = self.tabview.tab(tab_name)
+
+        vars = {"level": ctk.StringVar(value="Medium")}
+        self.tabs[tab_name] = vars
+
+        ctk.CTkLabel(frame, text="🗜️ Smart Web Optimization — keeps the original format",
+                     font=("Arial", 15, "bold"), text_color="#27ae60").grid(
+                     row=0, column=0, columnspan=2, padx=15, pady=(18, 4), sticky="w")
+        ctk.CTkLabel(frame, justify="left", text_color="#AAAAAA",
+                     text="No conversion: re-encodes the image in its OWN format, strips metadata,\n"
+                          "and finds the smallest visually-lossless size for the web.\n"
+                          "Powered by MozJPEG / cwebp / pngquant + oxipng.").grid(
+                     row=1, column=0, columnspan=2, padx=15, pady=(0, 14), sticky="w")
+
+        ctk.CTkLabel(frame, text="Compression Level:", font=("Arial", 12, "bold")).grid(
+            row=2, column=0, padx=15, pady=(6, 4), sticky="w")
+
+        lbl_desc = ctk.CTkLabel(frame, text="", text_color="#2ecc71", font=("Arial", 12))
+
+        def on_level(val):
+            notes = {
+                "Low":    "🪶 Low — smallest file; slight softening only on close pixel-peeping.",
+                "Medium": "✅ Medium (recommended) — looks identical, big size savings.",
+                "High":   "💎 High — sharpest; larger file but still below the original.",
+            }
+            lbl_desc.configure(text=notes.get(val, ""))
+
+        seg = ctk.CTkSegmentedButton(
+            frame, values=["Low", "Medium", "High"], variable=vars["level"],
+            command=on_level, selected_color="#27ae60", selected_hover_color="#1e8449")
+        seg.grid(row=3, column=0, columnspan=2, padx=15, pady=(0, 6), sticky="w")
+
+        lbl_desc.grid(row=4, column=0, columnspan=2, padx=15, pady=(2, 6), sticky="w")
+        on_level("Medium")
+
+        ctk.CTkLabel(frame, text="Output:  <name>_optimized.<same extension>   ·   Never larger than the original.",
+                     text_color="#777777", font=("Arial", 11)).grid(
+                     row=5, column=0, columnspan=2, padx=15, pady=(12, 4), sticky="w")
+
     def create_ai_tab(self, tab_name):
         self.tabview.add(tab_name)
         frame = self.tabview.tab(tab_name)
-        
+
         ctk.CTkLabel(frame, text="🤖 Powered by U^2-Net Artificial Intelligence", font=("Arial", 14, "bold"), text_color="#8e44ad").pack(pady=20)
         ctk.CTkLabel(frame, text="This tool automatically detects the main subject and removes the background.\nThe output will be strictly saved as a transparent .png file.").pack(pady=10)
 
@@ -523,6 +575,35 @@ class UltimateImageStudio(ctk.CTk):
                 if self.encode(input_path, output_path, target_fmt, quality, web, pre_args=pre_args):
                     self.log_savings(input_path, output_path)
                     self.finish_processing(output_path)
+
+            elif "Optimize" in active_tab:
+                vars = self.tabs[active_tab]
+                level = vars["level"].get()
+                preset = self.optimize_levels.get(level, self.optimize_levels["Medium"])
+
+                # Formatı KORU: çıktının uzantısı girişle aynı (convert yok).
+                ext = os.path.splitext(filename)[1].lower().lstrip(".")
+                fmt_key = "jpg" if ext == "jpeg" else ext
+                output_path = os.path.join(out_dir, f"{name}_optimized.{ext}")
+
+                self.log(f"🗜️ Web Optimize ({level}) — format korunuyor: .{ext.upper()}")
+                if fmt_key == "png":
+                    ok = self.encode(input_path, output_path, "png", "0", True,
+                                     png_quality=preset["png"])
+                else:
+                    q = str(preset.get(fmt_key, 75))
+                    ok = self.encode(input_path, output_path, ext, q, True)
+
+                if ok:
+                    # ImageOptim ilkesi: çıktı asla orijinalden büyük olmasın.
+                    try:
+                        if os.path.getsize(output_path) >= os.path.getsize(input_path):
+                            shutil.copyfile(input_path, output_path)
+                            self.log("ℹ️ Orijinal zaten optimal — orijinal byte'lar korundu.")
+                    except OSError:
+                        pass
+                    self.log_savings(input_path, output_path)
+                    self.finish_processing(output_path)
         except Exception as e:
             self.log(f"❌ CRITICAL ERROR: {str(e)}")
         finally:
@@ -570,10 +651,11 @@ class UltimateImageStudio(ctk.CTk):
         self._cleanup(tmp)
         return None
 
-    def encode(self, input_path, output_path, target_fmt, quality, web_optimize, pre_args=None):
+    def encode(self, input_path, output_path, target_fmt, quality, web_optimize,
+               pre_args=None, png_quality="65-90"):
         """Çıktıyı üretir. web_optimize açıkken format başına en iyi kodlayıcıyı
         (MozJPEG / cwebp / pngquant+oxipng) kullanır; araç yoksa ImageMagick'e düşer.
-        Başarı durumunda True döner."""
+        png_quality, pngquant kalite aralığıdır (ör. '50-80'). Başarıda True döner."""
         pre_args = pre_args or []
         lossy = target_fmt not in self.lossless_formats
 
@@ -599,7 +681,7 @@ class UltimateImageStudio(ctk.CTk):
                             return self._run(["cwebp", "-q", quality, "-m", "6", "-sharp_yuv",
                                               "-mt", "-quiet", tmp, "-o", output_path]) == 0
                         if tool == "png":
-                            return self._encode_png(tmp, output_path)
+                            return self._encode_png(tmp, output_path, png_quality)
                     finally:
                         self._cleanup(tmp)
                 self.log("⚠️ Pro kodlayıcı ön-işlemi başarısız, ImageMagick'e dönülüyor.")
@@ -615,12 +697,12 @@ class UltimateImageStudio(ctk.CTk):
         cmd.append(output_path)
         return self._run(cmd) == 0
 
-    def _encode_png(self, tmp_png, output_path):
+    def _encode_png(self, tmp_png, output_path, png_quality="65-90"):
         """PNG için: önce görsel-kayıpsız pngquant; tutmazsa kayıpsız oxipng;
         o da yoksa ara PNG'yi taşı. PNG çıktısı asla başarısız olmaz."""
         if self.encoders.get("pngquant"):
-            self.log("🚀 pngquant (görsel-kayıpsız palet) ile kodlanıyor...")
-            rc = self._run(["pngquant", "--quality=65-90", "--strip", "--force",
+            self.log(f"🚀 pngquant (görsel-kayıpsız palet, kalite {png_quality}) ile kodlanıyor...")
+            rc = self._run(["pngquant", f"--quality={png_quality}", "--strip", "--force",
                             "--speed", "1", "--output", output_path, tmp_png])
             if rc == 0:
                 return True
