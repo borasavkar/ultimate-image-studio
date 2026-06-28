@@ -41,11 +41,16 @@ class UltimateImageStudio(ctk.CTk):
         self.geometry("850x950")
         self.resizable(True, True)
         # --- ÖZEL İKON ENTEGRASYONU ---
-        try:
-            self.iconbitmap(resource_path("icon.ico"))
-        except Exception:
-            pass
-        
+        # CustomTkinter, kendi init'i sırasında pencere ikonunu sıfırlar; bu yüzden
+        # ikonu hem hemen hem de kısa bir gecikmeyle (init bittikten sonra) uyguluyoruz.
+        # Aksi halde başlıkta ve görev çubuğunda varsayılan Tk ikonu görünür.
+        self._icon_path = resource_path("icon.ico")
+        self._icon_png = resource_path("icon.png")
+        self._icon_photo = None
+        self._apply_icon()
+        self.after(200, self._apply_icon)
+        self.after(600, self._apply_icon)
+
         self.grid_columnconfigure(0, weight=1)
         self.grid_rowconfigure(3, weight=1)
 
@@ -145,6 +150,22 @@ class UltimateImageStudio(ctk.CTk):
         if missing:
             self.log(f"ℹ️ Eksik kodlayıcılar (ImageMagick'e düşülür): {', '.join(missing)}")
             self.log("   Kurmak için:  scoop install mozjpeg libwebp pngquant oxipng")
+
+    def _apply_icon(self):
+        """Pencere/görev çubuğu ikonunu uygular. CTk init'i ezdiği için birkaç kez çağrılır.
+        iconphoto (PNG) görev çubuğu ikonu için iconbitmap'ten daha güvenilirdir."""
+        try:
+            if os.path.exists(self._icon_path):
+                self.iconbitmap(self._icon_path)
+        except Exception:
+            pass
+        try:
+            if self._icon_photo is None and os.path.exists(self._icon_png):
+                self._icon_photo = tk.PhotoImage(file=self._icon_png)
+            if self._icon_photo is not None:
+                self.iconphoto(True, self._icon_photo)
+        except Exception:
+            pass
 
     def create_card(self, parent, title, **kwargs):
         card = ctk.CTkFrame(parent, corner_radius=15, border_width=1, border_color="#3A3A3A", fg_color="#242424", **kwargs)
