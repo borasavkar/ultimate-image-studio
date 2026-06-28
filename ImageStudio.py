@@ -152,8 +152,9 @@ class UltimateImageStudio(ctk.CTk):
             self.log("   Kurmak için:  scoop install mozjpeg libwebp pngquant oxipng")
 
     def _apply_icon(self):
-        """Pencere/görev çubuğu ikonunu uygular. CTk init'i ezdiği için birkaç kez çağrılır.
-        iconphoto (PNG) görev çubuğu ikonu için iconbitmap'ten daha güvenilirdir."""
+        """Pencere + görev çubuğu ikonunu uygular. CTk init'i ezdiği için birkaç kez çağrılır.
+        Tk (iconbitmap/iconphoto) başlık çubuğunu, Win32 WM_SETICON ise görev çubuğunu hedefler."""
+        # Başlık çubuğu (Tk yöntemleri)
         try:
             if os.path.exists(self._icon_path):
                 self.iconbitmap(self._icon_path)
@@ -164,6 +165,22 @@ class UltimateImageStudio(ctk.CTk):
                 self._icon_photo = tk.PhotoImage(file=self._icon_png)
             if self._icon_photo is not None:
                 self.iconphoto(True, self._icon_photo)
+        except Exception:
+            pass
+        # Görev çubuğu: ikonu doğrudan pencereye WM_SETICON ile gönder (en güvenilir yol)
+        try:
+            if os.name == "nt" and os.path.exists(self._icon_path):
+                import ctypes
+                u = ctypes.windll.user32
+                hwnd = u.GetParent(self.winfo_id()) or self.winfo_id()
+                WM_SETICON, ICON_SMALL, ICON_BIG = 0x0080, 0, 1
+                IMAGE_ICON, LR_LOADFROMFILE = 1, 0x00000010
+                big = u.LoadImageW(None, self._icon_path, IMAGE_ICON, 32, 32, LR_LOADFROMFILE)
+                small = u.LoadImageW(None, self._icon_path, IMAGE_ICON, 16, 16, LR_LOADFROMFILE)
+                if big:
+                    u.SendMessageW(hwnd, WM_SETICON, ICON_BIG, big)
+                if small:
+                    u.SendMessageW(hwnd, WM_SETICON, ICON_SMALL, small)
         except Exception:
             pass
 
@@ -778,10 +795,13 @@ if __name__ == "__main__":
     try:
         import ctypes
         ctypes.windll.shcore.SetProcessDpiAwareness(1)
-        myappid = 'borasavkar.ultimate.image.studio.1.5'
-        ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(myappid)
+        # NOT: SetCurrentProcessExplicitAppUserModelID bilinçli olarak ayarlanmıyor.
+        # Özel bir AppUserModelID ayarlandığında Windows görev çubuğu, pencere ikonu
+        # yerine o AppID için (kayıtlı kısayol yoksa önbellekte boş kalan) ikonu
+        # kullanıyor ve boş beyaz sayfa görünüyordu. AppID olmadan görev çubuğu,
+        # exe'nin gömülü ikonunu + WM_SETICON pencere ikonunu kullanır.
     except Exception:
         pass
-        
+
     app = UltimateImageStudio()
     app.mainloop()
