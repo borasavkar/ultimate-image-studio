@@ -121,6 +121,7 @@ class UltimateImageStudio(ctk.CTk):
         self.create_convert_tab("🔄 Format Conversion")
         self.create_optimize_tab("🗜️ Web Optimize")
         self.create_resize_tab("📐 Image Resizing")
+        self.create_favicon_tab("🎯 Favicon Generator")
         self.create_ai_tab("🪄 AI Background Removal")
 
         # 3. ACTION BUTTON
@@ -195,6 +196,7 @@ class UltimateImageStudio(ctk.CTk):
         if "AI" in tab: color, hover, text_color = "#8e44ad", "#732d91", "white"
         elif "Resizing" in tab: color, hover, text_color = "#e67e22", "#d35400", "white"
         elif "Optimize" in tab: color, hover, text_color = "#27ae60", "#1e8449", "white"
+        elif "Favicon" in tab: color, hover, text_color = "#16a085", "#0e6655", "white"
         else: color, hover, text_color = "#2980b9", "#1f618d", "white"
             
         self.btn_start.configure(fg_color=color, hover_color=hover, text_color=text_color)
@@ -441,6 +443,54 @@ class UltimateImageStudio(ctk.CTk):
                      text_color="#777777", font=("Arial", 11)).grid(
                      row=5, column=0, columnspan=2, padx=15, pady=(12, 4), sticky="w")
 
+    def create_favicon_tab(self, tab_name):
+        self.tabview.add(tab_name)
+        frame = self.tabview.tab(tab_name)
+
+        sizes = [16, 32, 48, 64, 128, 256]
+        defaults = {16, 32, 48}
+        vars = {f"sz_{s}": ctk.BooleanVar(value=(s in defaults)) for s in sizes}
+        self.tabs[tab_name] = vars
+
+        ctk.CTkLabel(frame, text="🎯 Favicon Generator — one multi-resolution .ico",
+                     font=("Arial", 15, "bold"), text_color="#16a085").grid(
+                     row=0, column=0, columnspan=6, padx=15, pady=(18, 4), sticky="w")
+        ctk.CTkLabel(frame, justify="left", text_color="#AAAAAA",
+                     text="Source = the Input Image selected above. Best results: a square,\n"
+                          "high-resolution (≥256px) PNG with transparency. Non-square images are\n"
+                          "auto-padded so they aren't distorted. One favicon.ico is produced\n"
+                          "containing every checked resolution.").grid(
+                     row=1, column=0, columnspan=6, padx=15, pady=(0, 12), sticky="w")
+
+        ctk.CTkLabel(frame, text="Resolutions to include:", font=("Arial", 12, "bold")).grid(
+            row=2, column=0, columnspan=6, padx=15, pady=(6, 4), sticky="w")
+
+        frame_sizes = ctk.CTkFrame(frame, fg_color="transparent")
+        frame_sizes.grid(row=3, column=0, columnspan=6, padx=15, pady=(0, 6), sticky="w")
+        hints = {16: "browser tab", 32: "taskbar / retina", 48: "Windows",
+                 64: "HiDPI", 128: "large", 256: "max / HiDPI"}
+        for i, s in enumerate(sizes):
+            ctk.CTkCheckBox(frame_sizes, text=f"{s}×{s}   ({hints[s]})",
+                            variable=vars[f"sz_{s}"], width=200).grid(
+                            row=i // 2, column=i % 2, padx=10, pady=6, sticky="w")
+
+        def set_sizes(active):
+            for s in sizes:
+                vars[f"sz_{s}"].set(s in active)
+
+        frame_presets = ctk.CTkFrame(frame, fg_color="transparent")
+        frame_presets.grid(row=4, column=0, columnspan=6, padx=15, pady=(8, 4), sticky="w")
+        ctk.CTkButton(frame_presets, text="✅ Standard (16/32/48)", width=180,
+                      fg_color="#16a085", hover_color="#0e6655",
+                      command=lambda: set_sizes({16, 32, 48})).pack(side="left", padx=(0, 10))
+        ctk.CTkButton(frame_presets, text="📦 All sizes", width=100,
+                      fg_color="#1f6f8b", hover_color="#16515f",
+                      command=lambda: set_sizes(set(sizes))).pack(side="left")
+
+        ctk.CTkLabel(frame, text="Output:  favicon.ico   (in the output folder)",
+                     text_color="#777777", font=("Arial", 11)).grid(
+                     row=5, column=0, columnspan=6, padx=15, pady=(12, 4), sticky="w")
+
     def create_ai_tab(self, tab_name):
         self.tabview.add(tab_name)
         frame = self.tabview.tab(tab_name)
@@ -642,6 +692,36 @@ class UltimateImageStudio(ctk.CTk):
                         pass
                     self.log_savings(input_path, output_path)
                     self.finish_processing(output_path)
+
+            elif "Favicon" in active_tab:
+                vars = self.tabs[active_tab]
+                sizes = [s for s in (16, 32, 48, 64, 128, 256) if vars[f"sz_{s}"].get()]
+                if not sizes:
+                    self.log("❌ En az bir çözünürlük seçmelisin (ör. 16, 32, 48).")
+                else:
+                    sizes_str = ",".join(str(s) for s in sizes)
+                    output_path = os.path.join(out_dir, "favicon.ico")
+                    self.log(f"🎯 Favicon oluşturuluyor → {sizes_str} px")
+
+                    # Kareye getir (bozulmasın) — daha büyük kenarı baz al
+                    sq = None
+                    if self.orig_w and self.orig_h:
+                        sq = max(self.orig_w, self.orig_h)
+                    elif HAS_PILLOW:
+                        try:
+                            with Image.open(input_path) as im:
+                                sq = max(im.size)
+                        except Exception:
+                            sq = None
+
+                    cmd = ["magick", input_path, "-auto-orient", "-background", "none", "-alpha", "on"]
+                    if sq:
+                        cmd += ["-gravity", "center", "-extent", f"{sq}x{sq}"]
+                    cmd += ["-define", f"icon:auto-resize={sizes_str}", output_path]
+
+                    if self._run(cmd) == 0:
+                        self.log(f"🎉 favicon.ico hazır — {len(sizes)} çözünürlük: {sizes_str}")
+                        self.finish_processing(output_path)
         except Exception as e:
             self.log(f"❌ CRITICAL ERROR: {str(e)}")
         finally:

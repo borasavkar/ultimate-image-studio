@@ -26,6 +26,7 @@
   Metadata (EXIF/GPS) is stripped, and every job logs the size reduction
   (e.g. `📦 5.6 MB → 512 KB (💾 91% smaller)`). If a tool isn't installed, the app
   falls back to ImageMagick automatically — it never breaks.
+- **🎯 Favicon Generator** — turn any image into a single multi‑resolution `favicon.ico`. Tick the sizes you want (16 / 32 / 48 / 64 / 128 / 256); non‑square sources are auto‑padded so they aren't distorted, and transparency is preserved. 16 / 32 / 48 are the recommended defaults.
 - **🪄 AI Background Removal** *(optional)* — one‑click subject cut‑out to a transparent PNG using the U²‑Net model (via `rembg`).
 
 ## 📦 Requirements
