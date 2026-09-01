@@ -43,7 +43,10 @@ exe = EXE(
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
-    upx=True,
+    # UPX kapalı: kurulu olduğunda onnxruntime/numpy/scipy DLL'lerini de sıkıştırıyor
+    # ve bu yerel kütüphaneleri bozarak AI motorunu çalışmaz hale getirebiliyor.
+    # Kazanç ~26 MB; güvenilirlik daha önemli ve derlemeyi belirlenimci kılıyor.
+    upx=False,
     upx_exclude=[],
     runtime_tmpdir=None,
     console=False,
