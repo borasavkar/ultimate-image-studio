@@ -1,10 +1,36 @@
+import os
+import sys
+import io
+
+APP_VERSION = "1.6"
+
+
+class _NullStream(io.TextIOBase):
+    """--noconsole ile paketlenen exe'de sys.stdout/sys.stderr None olur.
+    rembg'in model indirme ilerleme cubugu (pooch/tqdm) stderr'e yazmaya calisip
+    "'NoneType' object has no attribute 'write'" hatasi veriyordu. Bu yutucu akis
+    o yaziyi sessizce yutar. Ucuncu parti importlardan ONCE kurulmalidir."""
+
+    def write(self, s):
+        return len(s)
+
+    def flush(self):
+        pass
+
+    def isatty(self):
+        return False
+
+
+if sys.stdout is None:
+    sys.stdout = _NullStream()
+if sys.stderr is None:
+    sys.stderr = _NullStream()
+
 import customtkinter as ctk
 import tkinter as tk
 from tkinter import filedialog, messagebox
 import subprocess
 import threading
-import os
-import sys
 import winsound
 import time
 import tempfile
@@ -37,7 +63,7 @@ ctk.set_default_color_theme("blue")
 class UltimateImageStudio(ctk.CTk):
     def __init__(self):
         super().__init__()
-        self.title("Ultimate Image Studio Pro v1.5 - Smart UI & Filters")
+        self.title(f"Ultimate Image Studio Pro v{APP_VERSION} - Smart UI & Filters")
         self.geometry("850x950")
         self.resizable(True, True)
         # --- ÖZEL İKON ENTEGRASYONU ---
@@ -533,19 +559,25 @@ class UltimateImageStudio(ctk.CTk):
                     self.tabs["📐 Image Resizing"]["update_ui_func"](ext)
             
             # --- PİLLOW İLE ORİJİNAL BOYUTLARI OKUMA ---
+            # ÖNEMLİ: önce sıfırla. Aksi halde yeni görsel okunamazsa bir ÖNCEKİ
+            # görselin ölçüleri elde kalıyor ve favicon kare doldurması ile
+            # dosya adındaki yükseklik yanlış oluyordu.
+            self.orig_w, self.orig_h = None, None
             if HAS_PILLOW:
                 try:
                     with Image.open(path) as img:
                         # Sihirli Dokunuş: Pillow'a EXIF yönünü okutuyoruz
                         img = ImageOps.exif_transpose(img)
-                        
+
                         self.orig_w, self.orig_h = img.size
                         self.log(f"📐 Original Dimensions detected: {self.orig_w}x{self.orig_h}")
-                        
-                        self._updating_ratio = True
-                        self.tabs["📐 Image Resizing"]["width"].set(str(self.orig_w))
-                        self.tabs["📐 Image Resizing"]["height"].set(str(self.orig_h))
-                        self._updating_ratio = False
+
+                        try:
+                            self._updating_ratio = True
+                            self.tabs["📐 Image Resizing"]["width"].set(str(self.orig_w))
+                            self.tabs["📐 Image Resizing"]["height"].set(str(self.orig_h))
+                        finally:
+                            self._updating_ratio = False
                 except Exception as e:
                     self.log(f"⚠️ Dimensions could not be read automatically. You can enter them manually.")
 
@@ -555,22 +587,90 @@ class UltimateImageStudio(ctk.CTk):
             self.output_dir.set(path)
 
     def log(self, message):
-        self.txt_log.configure(state='normal')
-        self.txt_log.insert(tk.END, message + "\n")
-        self.txt_log.see(tk.END)
-        self.txt_log.configure(state='disabled')
+        # İşlemler ayrı bir iş parçacığında koştuğu için buradaki Tk çağrısı nadiren
+        # hata verebilir; bu asla işi çökertmemeli (log kaybı kabul edilebilir).
+        try:
+            self.txt_log.configure(state='normal')
+            self.txt_log.insert(tk.END, message + "\n")
+            self.txt_log.see(tk.END)
+            self.txt_log.configure(state='disabled')
+        except Exception:
+            pass
 
     def on_closing(self):
         self.destroy()
         os._exit(0)
 
     # --- CORE PROCESSING ENGINES ---
+    def _pil_can_open(self, path):
+        """AI motorunun (Pillow) bu dosyayı açıp açamayacağını söyler.
+        Pillow yoksa karar veremeyiz; rembg kendi denesin diye True döneriz."""
+        if not HAS_PILLOW:
+            return True
+        try:
+            with Image.open(path) as im:
+                im.verify()
+            return True
+        except Exception:
+            return False
+
+    def _prepare_u2net_cache(self):
+        """U^2-Net model önbelleğini hazırlar. Model ilk kullanımda ~176 MB olarak
+        indirilir; kullanıcı bunu bilmezse uygulama donmuş sanılıyor. Ayrıca yarım
+        kalmış indirmelerden kalan 0 byte'lık geçici dosyaları temizler."""
+        try:
+            cache_dir = os.path.join(os.path.expanduser("~"), ".u2net")
+            model = os.path.join(cache_dir, "u2net.onnx")
+            if os.path.isdir(cache_dir):
+                for entry in os.listdir(cache_dir):
+                    path = os.path.join(cache_dir, entry)
+                    try:
+                        if entry.startswith("tmp") and os.path.isfile(path) \
+                                and os.path.getsize(path) == 0:
+                            os.remove(path)
+                    except OSError:
+                        pass
+            if not os.path.exists(model):
+                self.log("⬇️ İlk çalıştırma: AI modeli indiriliyor (~176 MB, internet gerekir).")
+                self.log("   Bu birkaç dakika sürebilir; uygulama donmuş değil, lütfen bekle...")
+        except Exception:
+            pass
+
+    def _resolve_output_dir(self):
+        """Çıktı klasörünü işlem BAŞLAMADAN doğrular. Boşsa dosya sessizce çalışma
+        dizinine yazılıyordu; klasör yoksa iş bittikten sonra ham hata veriyordu.
+        Kullanılabilir yolu döndürür, aksi halde None."""
+        out_dir = self.output_dir.get().strip()
+        if not out_dir:
+            out_dir = os.path.dirname(os.path.abspath(self.input_file.get()))
+            self.output_dir.set(out_dir)
+            self.log(f"ℹ️ Çıktı klasörü boştu → girdi klasörü kullanılıyor: {out_dir}")
+        if not os.path.isdir(out_dir):
+            try:
+                os.makedirs(out_dir, exist_ok=True)
+                self.log(f"📂 Çıktı klasörü oluşturuldu: {out_dir}")
+            except OSError as e:
+                self.log(f"❌ Çıktı klasörü oluşturulamadı: {out_dir}\n   {e}")
+                return None
+        if not os.access(out_dir, os.W_OK):
+            self.log(f"❌ Çıktı klasörüne yazma izni yok: {out_dir}")
+            return None
+        return out_dir
+
     def start_thread(self):
         if not self.input_file.get():
             messagebox.showerror("Error", "Please select an input image first!")
             return
-        
+
+        if not os.path.isfile(self.input_file.get()):
+            messagebox.showerror("Error", "The selected input image no longer exists!")
+            return
+
         if self.is_processing:
+            return
+
+        if self._resolve_output_dir() is None:
+            messagebox.showerror("Error", "Output folder is not usable.\nSee the Studio Terminal for details.")
             return
 
         self.btn_start.configure(state="disabled", text="⏳ PROCESSING...")
@@ -594,20 +694,46 @@ class UltimateImageStudio(ctk.CTk):
                 if not HAS_REMBG:
                     self.log(f"❌ ERROR: AI Engine failed to load!\n⚠️ Hidden Detail: {REMBG_ERROR}")
                     return
-                    
+
                 output_path = os.path.join(out_dir, f"{name}_NoBG.png")
+                self._prepare_u2net_cache()
                 self.log("🤖 AI Engine analyzing the image (CPU Mode)...")
-                
-                with open(input_path, 'rb') as i:
-                    input_data = i.read()
-                    
-                output_data = remove(input_data)
-                
-                with open(output_path, 'wb') as o:
-                    o.write(output_data)
-                    
+
+                # AI motoru (Pillow) HEIC/JXL/AVIF gibi formatları okuyamaz; dosya
+                # seçici bunları sunduğu için önce ImageMagick ile geçici PNG'ye çeviriyoruz.
+                ai_source, tmp_png = input_path, None
+                if not self._pil_can_open(input_path):
+                    self.log("🔄 Bu formatı AI motoru okuyamıyor → geçici PNG'ye çevriliyor...")
+                    tmp_png = self._stage1_png(input_path, [])
+                    if not tmp_png:
+                        self.log("❌ Girdi PNG'ye çevrilemedi; AI işlemi iptal edildi.")
+                        return
+                    ai_source = tmp_png
+
+                try:
+                    with open(ai_source, 'rb') as i:
+                        input_data = i.read()
+                    output_data = remove(input_data)
+                except Exception as e:
+                    self.log(f"❌ AI Engine failed: {type(e).__name__}: {e}")
+                    self.log("ℹ️ Model inmediyse internet bağlantını kontrol edip tekrar dene.")
+                    return
+                finally:
+                    self._cleanup(tmp_png)
+
+                try:
+                    with open(output_path, 'wb') as o:
+                        o.write(output_data)
+                except OSError as e:
+                    self.log(f"❌ AI sonucu hesaplandı ama kaydedilemedi: {e}")
+                    self.log(f"   Hedef klasör: {out_dir}")
+                    self.log("ℹ️ Yazılabilir bir Output klasörü seçip tekrar dene "
+                             "(model önbellekte, tekrar indirilmeyecek).")
+                    return
+
                 self.log("✨ AI Background removal successful!")
                 self.finish_processing(output_path)
+
 
             elif "Conversion" in active_tab:
                 vars = self.tabs[active_tab]
@@ -725,8 +851,13 @@ class UltimateImageStudio(ctk.CTk):
         except Exception as e:
             self.log(f"❌ CRITICAL ERROR: {str(e)}")
         finally:
-            self.btn_start.configure(state="normal", text="🚀 PROCESS SELECTED TAB")
+            # Bayrağı ÖNCE düşür: buton geri yüklenirken bir Tk hatası olursa
+            # is_processing True kalıp PROCESS butonunu kalıcı olarak kilitliyordu.
             self.is_processing = False
+            try:
+                self.btn_start.configure(state="normal", text="🚀 PROCESS SELECTED TAB")
+            except Exception:
+                pass
 
     # --- ENCODING ENGINE ---
     def _run(self, cmd):
@@ -738,6 +869,11 @@ class UltimateImageStudio(ctk.CTk):
                 stdout=subprocess.PIPE,
                 stderr=subprocess.STDOUT,
                 universal_newlines=True,
+                # Açık encoding şart: aksi halde Windows ANSI kod sayfası (Türkçe'de
+                # cp1254) kullanılır ve harici aracın ürettiği bir bayt çözülemeyince
+                # UnicodeDecodeError tüm işi çökertir.
+                encoding="utf-8",
+                errors="replace",
                 creationflags=subprocess.CREATE_NO_WINDOW if os.name == 'nt' else 0
             )
             for line in process.stdout:
@@ -749,6 +885,11 @@ class UltimateImageStudio(ctk.CTk):
         except FileNotFoundError:
             self.log(f"❌ ERROR: '{cmd[0]}' command not found!")
             return 127
+        except OSError as e:
+            # Aracı başlatırken/okurken oluşan diğer hatalar da bir dönüş koduna
+            # çevrilmeli; aksi halde çağıran yerlerdeki geçici dosyalar sızıyor.
+            self.log(f"❌ ERROR: '{cmd[0]}' çalıştırılamadı: {e}")
+            return 126
 
     def _cleanup(self, path):
         try:
@@ -763,9 +904,14 @@ class UltimateImageStudio(ctk.CTk):
         fd, tmp = tempfile.mkstemp(suffix=".png")
         os.close(fd)
         cmd = ["magick", input_path, "-auto-orient"] + list(pre_args) + ["-strip", tmp]
-        rc = self._run(cmd)
-        if rc == 0 and os.path.exists(tmp) and os.path.getsize(tmp) > 0:
-            return tmp
+        try:
+            rc = self._run(cmd)
+            if rc == 0 and os.path.exists(tmp) and os.path.getsize(tmp) > 0:
+                return tmp
+        except Exception:
+            # Beklenmedik bir hata olsa bile geçici dosya diskte kalmamalı.
+            self._cleanup(tmp)
+            raise
         self._cleanup(tmp)
         return None
 
