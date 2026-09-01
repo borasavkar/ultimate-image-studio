@@ -21,17 +21,16 @@ python -m pip install pyinstaller
 REM 2) Optional: AI Background Removal deps (heavy). Comment out to skip.
 python -m pip install rembg onnxruntime pooch pymatting
 
+REM 3) Optional: scientific stack needed by the AI engine at runtime.
+python -m pip install numpy scipy scikit-image
+
 echo [*] Building single-file portable exe...
-pyinstaller --noconfirm --noconsole --onefile ^
-  --name "UltimateImageStudio" ^
-  --icon "icon.ico" ^
-  --add-data "icon.ico;." ^
-  --collect-all customtkinter ^
-  --collect-all rembg ^
-  --collect-all onnxruntime ^
-  --collect-all pooch ^
-  --collect-all pymatting ^
-  ImageStudio.py
+REM IMPORTANT: build from ImageStudio.spec, do NOT pass options that make
+REM PyInstaller regenerate it. The spec carries settings this app needs:
+REM full collection of numpy/scipy/skimage (PyInstaller otherwise misses
+REM numpy 2.x's `numpy._core` and the AI engine fails to load), the bundled
+REM icon.ico/icon.png, and upx=False so native DLLs are never UPX-packed.
+pyinstaller --noconfirm ImageStudio.spec
 
 echo.
 echo [+] Done. Your portable app: dist\UltimateImageStudio.exe
