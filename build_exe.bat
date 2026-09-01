@@ -16,7 +16,10 @@ call .venv\Scripts\activate.bat
 echo [*] Installing dependencies...
 python -m pip install --upgrade pip
 python -m pip install -r requirements.txt
-python -m pip install pyinstaller
+REM PyInstaller 6.22+ is required: Python 3.14 ships Tcl/Tk 9 inside a zipfs
+REM image, and older PyInstaller cannot extract it, so the built exe dies at
+REM startup with: Tcl data directory "..._tcl_data" not found.
+python -m pip install "pyinstaller>=6.22"
 
 REM 2) Optional: AI Background Removal deps (heavy). Comment out to skip.
 python -m pip install rembg onnxruntime pooch pymatting
