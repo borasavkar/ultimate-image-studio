@@ -22,3 +22,6 @@ Thumbs.db
 
 # Byproduct of running PyInstaller with --name (the tuned spec is ImageStudio.spec)
 /UltimateImageStudio.spec
+
+# Portable exe copied to the repo root for convenience (distributed via Releases)
+/UltimateImageStudio.exe
