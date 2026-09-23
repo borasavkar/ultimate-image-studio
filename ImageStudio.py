@@ -2,7 +2,7 @@ import os
 import sys
 import io
 
-APP_VERSION = "1.7"
+APP_VERSION = "1.8"
 
 
 class _NullStream(io.TextIOBase):
@@ -67,9 +67,20 @@ IMAGE_EXTS = {".png", ".jpg", ".jpeg", ".jfif", ".webp", ".avif", ".heic", ".hei
               ".jxl", ".bmp", ".gif", ".tif", ".tiff", ".ico", ".cur", ".svg",
               ".psd", ".tga"}
 
-# Son kullanılan ayarlar burada saklanır; uygulama açılışta geri yükler.
-SETTINGS_PATH = os.path.join(os.environ.get("APPDATA") or os.path.expanduser("~"),
-                             "UltimateImageStudio", "settings.json")
+def app_dir():
+    """Paketlenmiş exe'nin (onefile'da sys.executable) ya da betiğin bulunduğu klasör."""
+    if getattr(sys, "frozen", False):
+        return os.path.dirname(os.path.abspath(sys.executable))
+    return os.path.dirname(os.path.abspath(__file__))
+
+
+# Son kullanılan ayarlar exe'nin yanındaki kendi klasöründe tutulur (taşınabilir:
+# exe ile birlikte taşınır). O klasör yazılamıyorsa (ör. Program Files) %APPDATA%
+# yedeğine düşülür. v1.7 ayarları da oradaydı; ilk kayıtta exe'nin yanına taşınır.
+SETTINGS_DIR_NAME = "UltimateImageStudio_Settings"
+SETTINGS_PATH = os.path.join(app_dir(), SETTINGS_DIR_NAME, "settings.json")
+FALLBACK_SETTINGS_PATH = os.path.join(os.environ.get("APPDATA") or os.path.expanduser("~"),
+                                      "UltimateImageStudio", "settings.json")
 
 def resource_path(rel):
     """Geliştirme ortamında da, PyInstaller ile paketlenmiş exe içinde de
@@ -858,23 +869,55 @@ class UltimateImageStudio(ctk.CTk):
         }
 
     def _save_settings(self, settings):
+        """Ayarları exe'nin yanındaki klasöre yazar; orası yazılamazsa %APPDATA%'ya.
+        Exe'nin yanına yazılabildiyse eski %APPDATA% kopyası kaldırılır (taşınmış olur).
+        Yazılan yolu, hiçbiri yazılamadıysa None döndürür."""
+        for path in (SETTINGS_PATH, FALLBACK_SETTINGS_PATH):
+            if self._write_json(path, settings):
+                if path == SETTINGS_PATH:
+                    self._remove_fallback_settings()
+                return path
+        return None
+
+    @staticmethod
+    def _write_json(path, data):
+        tmp = path + ".tmp"
         try:
-            os.makedirs(os.path.dirname(SETTINGS_PATH), exist_ok=True)
-            tmp = SETTINGS_PATH + ".tmp"
+            os.makedirs(os.path.dirname(path), exist_ok=True)
             with open(tmp, "w", encoding="utf-8") as f:
-                json.dump(settings, f, ensure_ascii=False, indent=2)
-            os.replace(tmp, SETTINGS_PATH)
+                json.dump(data, f, ensure_ascii=False, indent=2)
+            os.replace(tmp, path)
+            return True
         except Exception:
+            try:
+                os.remove(tmp)
+            except OSError:
+                pass
+            return False
+
+    @staticmethod
+    def _remove_fallback_settings():
+        if os.path.normcase(os.path.abspath(FALLBACK_SETTINGS_PATH)) == \
+                os.path.normcase(os.path.abspath(SETTINGS_PATH)):
+            return
+        try:
+            if os.path.isfile(FALLBACK_SETTINGS_PATH):
+                os.remove(FALLBACK_SETTINGS_PATH)
+            os.rmdir(os.path.dirname(FALLBACK_SETTINGS_PATH))   # yalnızca boşsa silinir
+        except OSError:
             pass
 
     def _load_settings(self):
-        try:
-            with open(SETTINGS_PATH, encoding="utf-8") as f:
-                data = json.load(f)
-        except Exception:
-            return
-        if isinstance(data, dict):
-            self._apply_settings(data)
+        """Önce exe'nin yanındaki ayarları, yoksa (ya da bozuksa) %APPDATA% yedeğini okur."""
+        for path in (SETTINGS_PATH, FALLBACK_SETTINGS_PATH):
+            try:
+                with open(path, encoding="utf-8") as f:
+                    data = json.load(f)
+            except Exception:
+                continue
+            if isinstance(data, dict):
+                self._apply_settings(data)
+                return
 
     def _apply_settings(self, s):
         """Kayıtlı ayarları arayüze uygular. Bozuk/eski değerler sessizce atlanır."""

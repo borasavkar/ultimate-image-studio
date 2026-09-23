@@ -25,3 +25,6 @@ Thumbs.db
 
 # Portable exe copied to the repo root for convenience (distributed via Releases)
 /UltimateImageStudio.exe
+
+# Portable settings folder the app writes next to the exe / script
+/UltimateImageStudio_Settings/

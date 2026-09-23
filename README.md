@@ -13,7 +13,7 @@
 ## ✨ Features
 
 - **📥 Drag & drop + batch processing** — drop one or more images (or a whole folder) anywhere on the window, or multi‑select with *Browse*. Every tab processes the whole batch with the same settings, shows `PROCESSING 3/10…`, never overwrites its own outputs (`_2`, `_3`… suffixes), and ends with a single summary.
-- **💾 Remembers your settings** — formats, quality, compression level, resize box, favicon sizes, the last tab and output folder are saved and restored on the next launch. Picking new images no longer resets anything you set.
+- **💾 Remembers your settings** — formats, quality, compression level, resize box, favicon sizes, the last tab and output folder are saved and restored on the next launch. Picking new images no longer resets anything you set. Settings live next to the exe in `UltimateImageStudio_Settings\settings.json`, so they travel with the portable app (if that folder is read‑only, e.g. under *Program Files*, they fall back to `%APPDATA%\UltimateImageStudio`).
 - **🔄 Format Conversion** — convert between PNG, WebP, JPG/JPEG, AVIF, HEIC/HEIF, JXL, ICO, BMP, SVG and more. The output file name carries the image height (e.g. `photo_1080px.webp`).
 - **📐 Image Resizing** — resize with aspect‑ratio lock and selectable filters (Lanczos, Mitchell, Point) for sharp downscales or smooth upscales.
 - **🗜️ Web Optimize tab (ImageOptim‑style, no conversion)** — shrinks an image **in its own format** to the smallest visually‑lossless size for the web. Pick a compression level (Low / Medium / High); metadata is stripped and the output is never larger than the original (`photo_optimized.jpg`).
